@@ -1,0 +1,27 @@
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Basic authentication check
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Allow new users to create their profile
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    // Collections that need user document existence check
+    match /{collection}/{document=**} {
+      allow read: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      allow write: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+  }
+}
